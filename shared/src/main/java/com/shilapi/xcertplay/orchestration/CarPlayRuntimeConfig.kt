@@ -6,11 +6,13 @@ import com.shilapi.xcertplay.network.WifiP2pChannels
 import java.net.Inet6Address
 import java.net.InetAddress
 
+/** Legacy values remain readable; G3RuntimeProfile gates the controller to WIRELESS. */
 enum class CarPlayTransport {
     WIRED,
     WIRELESS,
 }
 
+/** Legacy values remain readable; G3RuntimeProfile gates the controller to LOCAL. */
 enum class MfiTarget {
     LOCAL,
     USB_CH341,
@@ -18,6 +20,7 @@ enum class MfiTarget {
     REMOTE,
 }
 
+/** Legacy values remain readable; G3RuntimeProfile gates the controller to MANUAL. */
 enum class WirelessHotspotMode {
     WIFI_P2P,
     LOCAL_ONLY_HOTSPOT,
@@ -39,12 +42,12 @@ enum class ManualHotspotSecurity {
 }
 
 /**
- * Deployment-owned constants for one head unit. There are deliberately no built-in Apple or
- * CH341 product IDs: the physical devices attached to the target must be identified first.
+ * Deployment-owned constants for one head unit. Legacy fields are retained for source and saved
+ * configuration compatibility; the G3 controller accepts only the car hotspot and local identity.
  */
 class CarPlayRuntimeConfig(
     val iphoneDevices: List<UsbDeviceId> = emptyList(),
-    val mfiTarget: MfiTarget = MfiTarget.USB_CH341,
+    val mfiTarget: MfiTarget = MfiTarget.LOCAL,
     val ch341Devices: List<UsbDeviceId> = emptyList(),
     val ch341MfiResetGpio: Int? = null,
     val linuxI2cPath: String? = null,
@@ -56,8 +59,8 @@ class CarPlayRuntimeConfig(
     val availableCurrentMilliAmps: Int = DEFAULT_AVAILABLE_CURRENT_MILLI_AMPS,
     val label: String = "xcertplay",
     val hostName: String = "xcertplay",
-    val transport: CarPlayTransport = CarPlayTransport.WIRED,
-    val wirelessHotspotMode: WirelessHotspotMode = WirelessHotspotMode.WIFI_P2P,
+    val transport: CarPlayTransport = CarPlayTransport.WIRELESS,
+    val wirelessHotspotMode: WirelessHotspotMode = WirelessHotspotMode.MANUAL,
     val manualHotspotSsid: String? = null,
     val manualHotspotPassphrase: String? = null,
     val manualHotspotBand: ManualHotspotBand = ManualHotspotBand.AUTO,

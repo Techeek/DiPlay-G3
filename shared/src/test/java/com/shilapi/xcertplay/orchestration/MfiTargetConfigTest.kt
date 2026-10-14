@@ -59,6 +59,8 @@ class MfiTargetConfigTest {
         remoteMfiToken: String? = null,
     ): CarPlayRuntimeConfig = CarPlayRuntimeConfig(
         mfiTarget = mfiTarget,
+        manualHotspotSsid = "Test car hotspot",
+        manualHotspotPassphrase = "test-only-pass",
         ch341Devices = ch341Devices,
         linuxI2cPath = linuxI2cPath,
         remoteMfiServer = remoteMfiServer,

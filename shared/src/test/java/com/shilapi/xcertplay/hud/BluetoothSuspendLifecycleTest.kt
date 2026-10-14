@@ -296,7 +296,8 @@ class BluetoothSuspendLifecycleTest {
             }
         }
         return CarPlayController(context, CarPlayRuntimeConfig(
-            mfiTarget = MfiTarget.LOCAL, transport = CarPlayTransport.WIRED,
+            mfiTarget = MfiTarget.LOCAL, transport = CarPlayTransport.WIRELESS,
+            manualHotspotSsid = "Test car hotspot", manualHotspotPassphrase = "test-only-pass",
             identification = Iap2IdentificationConfig(name = "test", modelIdentifier = "test", manufacturer = "test",
                 serialNumber = "test", firmwareVersion = "1", hardwareVersion = "1", carPlayUsbInterfaceNumber = 3),
         ), AirPlayConfig("test", "test", "", "1", AirPlayDisplayConfig(800, 480)),

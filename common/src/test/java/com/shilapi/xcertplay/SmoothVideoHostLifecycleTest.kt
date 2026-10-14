@@ -47,6 +47,7 @@ import org.robolectric.shadows.ShadowMediaCodec
 @LooperMode(LooperMode.Mode.PAUSED)
 class SmoothVideoHostLifecycleTest {
     private lateinit var activity: CarPlayHostActivity
+    private var originalBootstrapReady = false
     private lateinit var controllerConstruction: MockedConstruction<CarPlayController>
     private val display = CarPlaySessionDisplay(1920, 990, Surface.ROTATION_0, true, true, 1920, 990)
     private val sizeClass = Class.forName("com.shilapi.xcertplay.CarPlayHostActivity\$DisplaySize")
@@ -58,7 +59,13 @@ class SmoothVideoHostLifecycleTest {
         CarPlayBackgroundSession.clear()
         activity = Robolectric.buildActivity(CarPlayHostActivity::class.java).get()
         AirPlayPersistence.saveAdaptPipResolution(activity, false)
-        AirPlayPersistence.saveMfiTarget(activity, MfiTarget.USB_CH341)
+        // The mocked session represents a provisioned G3. Authentication has its own real tests.
+        val ready = DiPlayBootstrap::class.java.getDeclaredField("ready").apply { isAccessible = true }
+        originalBootstrapReady = ready.getBoolean(null)
+        ready.setBoolean(null, true)
+        AirPlayPersistence.saveMfiTarget(activity, MfiTarget.LOCAL)
+        AirPlayPersistence.saveManualHotspotSsid(activity, "Test car hotspot")
+        AirPlayPersistence.saveManualHotspotPassphrase(activity, "test-only-pass")
         // Host startup without vendor-service workers or real transports.
         controllerConstruction = mockConstruction(CarPlayController::class.java) { controller, _ ->
             org.mockito.Mockito.`when`(controller.nowPlayingSnapshot()).thenReturn(CarPlayNowPlaying())
@@ -70,6 +77,8 @@ class SmoothVideoHostLifecycleTest {
     }
 
     @After fun tearDown() {
+        DiPlayBootstrap::class.java.getDeclaredField("ready").apply { isAccessible = true }
+            .setBoolean(null, originalBootstrapReady)
         (getField("shuttingDown") as AtomicBoolean).set(true)
         (getField("mainHandler") as Handler).removeCallbacksAndMessages(null)
         AirPlayPersistence.overlaySettingsListener = null

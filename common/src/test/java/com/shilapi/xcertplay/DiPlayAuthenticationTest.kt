@@ -5,7 +5,6 @@ import android.os.Looper
 import com.shilapi.xcertplay.airplay.*
 import com.shilapi.xcertplay.orchestration.*
 import com.shilapi.xcertplay.transport.Iap2IdentificationConfig
-import com.shilapi.xcertplay.transport.UsbDeviceId
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
@@ -40,45 +39,34 @@ class DiPlayAuthenticationTest {
         assertThrows(Exception::class.java) { DiPlayBootstrap.ensure(context, MfiTarget.LOCAL) }
     }
 
-    @Test fun savedUsbChoiceSurvivesBootstrapWithoutLocalAssets() {
+    @Test fun legacyUsbPreferenceCannotBypassRequiredLocalBootstrap() {
         AirPlayPersistence.saveMfiTarget(context, MfiTarget.USB_CH341)
-        DiPlayBootstrap.ensure(context, AirPlayPersistence.loadMfiTarget(context))
-        assertEquals(MfiTarget.USB_CH341, AirPlayPersistence.loadMfiTarget(context))
+        assertEquals(MfiTarget.LOCAL, AirPlayPersistence.loadMfiTarget(context))
+        assertThrows(Exception::class.java) {
+            DiPlayBootstrap.ensure(context, AirPlayPersistence.loadMfiTarget(context))
+        }
         assertFalse(directory.exists())
         assertFalse(File(context.noBackupFilesDir, "offline-mfi-staging").exists())
     }
 
-    @Test fun usbBootstrapDoesNotReadAnExistingBrokenLocalIdentity() {
+    @Test fun localBootstrapRejectsExistingBrokenIdentityWithoutOverwritingIt() {
         assertTrue(directory.mkdirs())
         File(directory, "identity.pk8").writeText("invalid local identity")
-        DiPlayBootstrap.ensure(context, MfiTarget.USB_CH341)
+        assertThrows(Exception::class.java) { DiPlayBootstrap.ensure(context, MfiTarget.LOCAL) }
         assertEquals("invalid local identity", File(directory, "identity.pk8").readText())
         assertFalse(File(directory, "certificate.p7b").exists())
-        assertThrows(Exception::class.java) { DiPlayBootstrap.ensure(context, MfiTarget.LOCAL) }
     }
 
-    @Test fun switchingFromUsbToLocalStillRequiresLocalIdentity() {
-        DiPlayBootstrap.ensure(context, MfiTarget.USB_CH341)
-        assertThrows(Exception::class.java) { DiPlayBootstrap.ensure(context, MfiTarget.LOCAL) }
-    }
-
-    @Test fun usbControllerWaitsForHardwareWithoutLocalAssets() {
-        val statuses = startAuthentication(MfiTarget.USB_CH341)
-        assertTrue(statuses.contains(CarPlayStatus.WaitingForMfi))
-        assertFalse(statuses.any { it is CarPlayStatus.Failed })
-        assertFalse(directory.exists())
-    }
-
-    @Test fun existingLocalDirectoryCannotOverrideUsbControllerSelection() {
+    @Test fun brokenLocalIdentityFailsWithoutFallingBackToHardware() {
         assertTrue(directory.mkdirs())
         File(directory, "identity.pk8").writeText("invalid local identity")
-        val statuses = startAuthentication(MfiTarget.USB_CH341)
-        assertTrue(statuses.contains(CarPlayStatus.WaitingForMfi))
-        assertFalse(statuses.any { it is CarPlayStatus.Failed })
+        val statuses = startAuthentication()
+        assertTrue(statuses.any { it is CarPlayStatus.Failed })
+        assertFalse(statuses.contains(CarPlayStatus.WaitingForMfi))
     }
 
     @Test fun missingLocalIdentityFailsWithoutFallingBackToUsb() {
-        val statuses = startAuthentication(MfiTarget.LOCAL)
+        val statuses = startAuthentication()
         assertTrue(statuses.any { it is CarPlayStatus.Failed })
         assertFalse(statuses.contains(CarPlayStatus.WaitingForMfi))
     }
@@ -90,11 +78,14 @@ class DiPlayAuthenticationTest {
         @Implementation fun start(context: Context) = Unit
     }
 
-    private fun startAuthentication(target: MfiTarget): List<CarPlayStatus> {
+    private fun startAuthentication(): List<CarPlayStatus> {
         val statuses = mutableListOf<CarPlayStatus>()
         val controller = CarPlayController(context,
-            CarPlayRuntimeConfig(mfiTarget = target,
-                ch341Devices = if (target == MfiTarget.USB_CH341) listOf(UsbDeviceId(0x1a86, 0x5512)) else emptyList(),
+            CarPlayRuntimeConfig(mfiTarget = MfiTarget.LOCAL,
+                transport = CarPlayTransport.WIRELESS,
+                wirelessHotspotMode = WirelessHotspotMode.MANUAL,
+                manualHotspotSsid = "Test car hotspot",
+                manualHotspotPassphrase = "test-only-pass",
                 identification = Iap2IdentificationConfig("test", "test", "test", "test", "1", "1", 3)),
             AirPlayConfig("test", "02:00:00:00:00:02", "02:00:00:00:00:01", "1", AirPlayDisplayConfig(1920, 990)),
             AirPlayIdentity.generate(), PairingStore(), object : AirPlaySessionListener {}, object : AirPlayMediaHandler {},

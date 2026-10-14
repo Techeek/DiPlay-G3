@@ -44,12 +44,9 @@ import com.shilapi.xcertplay.mfi.LocalMfiAuthenticationClient
 import com.shilapi.xcertplay.network.CarPlayBonjour
 import com.shilapi.xcertplay.network.diagnosticSummary
 import com.shilapi.xcertplay.network.CarPlayVpnService
-import com.shilapi.xcertplay.network.LocalOnlyHotspotManager
 import com.shilapi.xcertplay.network.ManualHotspotManager
-import com.shilapi.xcertplay.network.ExistingWifiManager
 import com.shilapi.xcertplay.network.HotspotAddressPolicy
 import com.shilapi.xcertplay.network.HotspotAddressRecovery
-import com.shilapi.xcertplay.network.WifiP2pGroupManager
 import com.shilapi.xcertplay.network.WifiScanPause
 import com.shilapi.xcertplay.network.WirelessHotspotInfo
 import com.shilapi.xcertplay.network.WirelessHotspotBackend
@@ -64,7 +61,6 @@ import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
 import com.shilapi.xcertplay.transport.BluetoothLinkCheck
 import com.shilapi.xcertplay.transport.BluetoothRadioCheck
 import com.shilapi.xcertplay.transport.BluetoothRfcommDuplexStream
-import com.shilapi.xcertplay.transport.Ch341DeviceMatcher
 import com.shilapi.xcertplay.transport.Ch341I2cTransport
 import com.shilapi.xcertplay.transport.Ch341UsbHost
 import com.shilapi.xcertplay.transport.Ch341UsbSession
@@ -150,10 +146,10 @@ internal fun isWirelessHandoffInProgress(
 ): Boolean = handoffRequested || tunnelActive || sessionActive
 
 /**
- * Wires the complete wired or wireless CarPlay path: MFi coprocessor discovery, iPhone bring-up,
- * iAP2 control, transport setup, and the AirPlay media/input sessions.
+ * Runs the G3 car-hotspot CarPlay path: offline MFi authentication, Bluetooth bootstrap,
+ * wireless iAP2 control, and the AirPlay media/input sessions.
  *
- * All blocking USB/I2C work runs on one worker executor. Status callbacks are delivered on the
+ * Authentication and connection work runs on one worker executor. Status callbacks are delivered on the
  * main thread. This class is the integration seam only and is not evidence of hardware operation.
  */
 class CarPlayController(
@@ -172,6 +168,7 @@ class CarPlayController(
     private val vehicleStatusProvider: com.shilapi.xcertplay.transport.VehicleStatusProvider? = null,
 ) : Closeable {
     init {
+        G3RuntimeProfile.requireSupported(config)
         require(!config.locationReportingEnabled || locationProvider != null) {
             "A location provider is required when location reporting is enabled"
         }
@@ -453,7 +450,6 @@ class CarPlayController(
             if (closed) return
         }
         connectionDiagnostic("start transport=${config.transport}")
-        if (!hasRequiredUsbService()) return
         videoListener?.let { listener ->
             videoGate = VideoInCarGate(
                 readParked = listener::readParked,
@@ -467,10 +463,6 @@ class CarPlayController(
                     debugLog("video in car gear=${when (parked) { true -> "P"; false -> "not-P"; null -> "unknown" }}")
                 },
             ).also { it.start() }
-        }
-        if (config.transport == CarPlayTransport.WIRED) {
-            permissionCloseable = iphoneHost.registerPermissionReceiver(::onIphonePermission)
-            attachCloseable = iphoneHost.registerAttachReceiver(::onIphoneAttached)
         }
         startMfi()
     }
@@ -487,10 +479,8 @@ class CarPlayController(
         if (closed) return
         if (mfiSession == null) {
             startMfi()
-        } else if (config.transport == CarPlayTransport.WIRELESS) {
-            restartWireless()
         } else {
-            startIphone()
+            restartWireless()
         }
     }
 
@@ -835,34 +825,11 @@ class CarPlayController(
     }
 
     private fun startMfi() {
-        if (!hasRequiredUsbService()) return
         availabilityPollGeneration.incrementAndGet()
         phase = Phase.MFI
         onStatus(CarPlayStatus.DiscoveringMfi)
         val offlineDirectory = java.io.File(appContext.noBackupFilesDir, LocalMfiAuthenticationClient.DIRECTORY)
-        when (config.mfiTarget) {
-            MfiTarget.LOCAL -> openLocalMfi(offlineDirectory)
-            MfiTarget.USB_CH341 -> {
-                debugLog("mfi discovery backend=CH341 devices=${config.ch341Devices}")
-                val host = ch341Host ?: Ch341UsbHost(
-                    appContext,
-                    requireUsbManager(),
-                    Ch341DeviceMatcher(config.ch341Devices),
-                ).also {
-                    ch341Host = it
-                    ch341PermissionCloseable = it.registerPermissionReceiver(::onCh341Permission)
-                }
-                checkCh341Mfi(host)
-            }
-            MfiTarget.I2C -> {
-                debugLog("mfi discovery backend=Linux I2C path=${config.linuxI2cPath}")
-                openLinuxMfi()
-            }
-            MfiTarget.REMOTE -> {
-                debugLog("mfi discovery backend=Remote server=${config.remoteMfiServer.orEmpty()}")
-                openRemoteMfi()
-            }
-        }
+        openLocalMfi(offlineDirectory)
     }
 
     private fun openLocalMfi(directory: java.io.File) {
@@ -1156,11 +1123,7 @@ class CarPlayController(
             }
             debugLog("location provider prewarmed=$started")
         }
-        if (config.transport == CarPlayTransport.WIRELESS) {
-            startWireless()
-        } else {
-            startIphone()
-        }
+        startWireless()
     }
 
     private fun startWireless(expectedGeneration: Int? = null) {
@@ -2317,31 +2280,16 @@ class CarPlayController(
             throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION,
                 "The car hotspot is off. Turn it on in the car settings and connect again.")
         }
-        val manager: WirelessHotspotManager = when (hotspotMode) {
-            WirelessHotspotMode.WIFI_P2P -> WifiP2pGroupManager(appContext, ::debugLog,
-                preferredChannel = config.wifiP2pPreferredChannel)
-            WirelessHotspotMode.LOCAL_ONLY_HOTSPOT -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                LocalOnlyHotspotManager(appContext, ::debugLog)
-            } else {
-                throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION,
-                    "Android ${Build.VERSION.RELEASE} has no local-only hotspot. Choose Car hotspot or Wi-Fi Direct.")
-            }
-            WirelessHotspotMode.EXISTING_WIFI -> ExistingWifiManager(
-                appContext, config.existingWifiSsid, config.existingWifiPassphrase, ::debugLog,
-                onNetworkChanged = { if (!isStaleWirelessRun(generation)) restartWireless() },
-            )
-            WirelessHotspotMode.MANUAL -> ManualHotspotManager(
-                context = appContext,
-                ssid = config.manualHotspotSsid
-                    ?: throw WirelessStartupException(WirelessStartupFailure.HOTSPOT_CONFIGURATION, "Manual hotspot SSID is not configured"),
-                passphrase = config.manualHotspotPassphrase.orEmpty(),
-                band = config.manualHotspotBand,
-                channel = config.manualHotspotChannel,
-                security = config.manualHotspotSecurity,
-                onDiagnostic = { debugLog("generation=$generation $it") },
-                isCancelled = { isStaleWirelessRun(generation) },
-            )
-        }
+        val manager: WirelessHotspotManager = ManualHotspotManager(
+            context = appContext,
+            ssid = checkNotNull(config.manualHotspotSsid),
+            passphrase = config.manualHotspotPassphrase.orEmpty(),
+            band = config.manualHotspotBand,
+            channel = config.manualHotspotChannel,
+            security = config.manualHotspotSecurity,
+            onDiagnostic = { debugLog("generation=$generation $it") },
+            isCancelled = { isStaleWirelessRun(generation) },
+        )
         synchronized(wirelessResourceLock) {
             if (isStaleWirelessRun(generation)) {
                 manager.close()
@@ -2349,13 +2297,7 @@ class CarPlayController(
             }
             hotspot = manager
         }
-        val timeoutMillis = if (hotspotMode == WirelessHotspotMode.WIFI_P2P) {
-            WIFI_P2P_START_TIMEOUT_MILLIS
-        } else if (hotspotMode == WirelessHotspotMode.MANUAL) {
-            ((readyDeadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)
-        } else {
-            HOTSPOT_START_TIMEOUT_MILLIS
-        }
+        val timeoutMillis = ((readyDeadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)
         return try {
             manager.start(timeoutMillis)
         } catch (failure: Exception) {
@@ -2707,7 +2649,7 @@ class CarPlayController(
     private fun hostAddressText(address: InetAddress): String {
         val text = address.hostAddress?.substringBefore('%')
         if (text.isNullOrBlank()) {
-            throw IOException("LocalOnlyHotspot host address is unavailable")
+            throw IOException("Car hotspot host address is unavailable")
         }
         return text
     }
@@ -2847,13 +2789,6 @@ class CarPlayController(
     private fun requireUsbManager(): UsbManager =
         usbManager ?: throw IOException("USB service is unavailable on this device")
 
-    private fun hasRequiredUsbService(): Boolean {
-        if (usbManager != null ||
-            config.transport != CarPlayTransport.WIRED && config.mfiTarget != MfiTarget.USB_CH341) return true
-        fail(IOException("USB service is unavailable on this device"))
-        return false
-    }
-
     private fun fail(error: Throwable, generation: Int? = null) {
         synchronized(wirelessResourceLock) {
             if (closed || generation != null && generation != wirelessGeneration.get()) return
@@ -2864,7 +2799,7 @@ class CarPlayController(
             }
             val causes = generateSequence(error) { it.cause }.toList()
             onStatus(CarPlayStatus.Failed(error.message ?: error.javaClass.simpleName,
-                causes.any { it is com.shilapi.xcertplay.network.P2pResetRequiredException },
+                false,
                 causes.filterIsInstance<WirelessStartupException>().firstOrNull()?.reason),
                 if (wireless) wirelessGeneration.get() else null)
         }
@@ -3000,8 +2935,6 @@ class CarPlayController(
         // BluetoothProfile.A2DP_SINK and HEADSET_CLIENT, hidden from the public SDK.
         private const val PROFILE_A2DP_SINK = 11
         private const val PROFILE_HEADSET_CLIENT = 16
-        private const val HOTSPOT_START_TIMEOUT_MILLIS = 60_000L
-        private const val WIFI_P2P_START_TIMEOUT_MILLIS = 20_000L
         private const val PAIR_TIMEOUT_MILLIS = 5 * 60_000L
         private const val VPN_CONNECT_TIMEOUT_MILLIS = 10_000L
         private const val WIRELESS_PREFS = "diplay_wireless"

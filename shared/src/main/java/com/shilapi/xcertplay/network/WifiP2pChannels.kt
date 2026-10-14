@@ -42,10 +42,3 @@ object WifiP2pChannels {
         else -> channel.toString()
     }
 }
-
-internal class P2pChannelUnavailableException(channel: Int, details: String, cause: Throwable? = null) :
-    java.io.IOException(
-        WifiP2pChannels.band(channel)?.let { "Wi-Fi Direct could not use the ${it.label} band. Choose Auto or another channel. $details" }
-            ?: "Wi-Fi Direct could not use channel $channel. Choose Auto or another channel. $details",
-        cause,
-    )

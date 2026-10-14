@@ -23,11 +23,13 @@ class ManualHotspotConfigTest {
     }
 
     @Test
-    fun wiredSessionIgnoresAnUnfinishedManualHotspot() {
-        // Manual hotspot chosen for wireless, but its name never entered: USB must still start.
+    fun legacyWiredConfigRemainsReadableButCannotEnterG3Runtime() {
         val config = config(CarPlayTransport.WIRED, ssid = "")
 
         assertEquals(CarPlayTransport.WIRED, config.transport)
+        assertThrows(IllegalArgumentException::class.java) {
+            G3RuntimeProfile.requireSupported(config)
+        }
     }
 
     @Test

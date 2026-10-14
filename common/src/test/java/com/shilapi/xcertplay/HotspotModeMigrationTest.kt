@@ -20,7 +20,8 @@ class HotspotModeMigrationTest {
         AirPlayPersistence.saveManualHotspotSsid(context, "Test car")
         AirPlayPersistence.saveManualHotspotPassphrase(context, "test-password")
         assertEquals(WirelessHotspotMode.MANUAL, AirPlayPersistence.loadWirelessHotspotMode(context))
-        assertEquals("MANUAL", prefs.getString("wireless_hotspot_mode", null))
+        // Legacy stored values need not be rewritten: the runtime always resolves to MANUAL.
+        assertEquals("LOCAL_ONLY_HOTSPOT", prefs.getString("wireless_hotspot_mode", null))
         assertEquals("Test car", AirPlayPersistence.loadManualHotspotSsid(context))
         assertEquals("test-password", AirPlayPersistence.loadManualHotspotPassphrase(context))
     }
@@ -30,13 +31,13 @@ class HotspotModeMigrationTest {
         assertEquals(WirelessHotspotMode.MANUAL, AirPlayPersistence.loadWirelessHotspotMode(context))
     }
 
-    @Test fun existingWifiDirectSelectionIsPreserved() {
+    @Test fun savedWifiDirectChoiceCannotChangeTheG3Profile() {
         AirPlayPersistence.saveWirelessHotspotMode(context, WirelessHotspotMode.WIFI_P2P)
-        assertEquals(WirelessHotspotMode.WIFI_P2P, AirPlayPersistence.loadWirelessHotspotMode(context))
+        assertEquals(WirelessHotspotMode.MANUAL, AirPlayPersistence.loadWirelessHotspotMode(context))
     }
 
-    @Test @Config(sdk = [28]) fun olderAndroidKeepsWifiDirectSelected() {
+    @Test @Config(sdk = [28]) fun olderAndroidAlsoPinsTheVehicleHotspot() {
         prefs.edit().putString("wireless_hotspot_mode", "WIFI_P2P").apply()
-        assertEquals(WirelessHotspotMode.WIFI_P2P, AirPlayPersistence.loadWirelessHotspotMode(context))
+        assertEquals(WirelessHotspotMode.MANUAL, AirPlayPersistence.loadWirelessHotspotMode(context))
     }
 }

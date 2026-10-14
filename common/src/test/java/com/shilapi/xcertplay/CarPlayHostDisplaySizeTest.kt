@@ -16,8 +16,9 @@ import com.shilapi.xcertplay.media.CarPlayNowPlaying
 import com.shilapi.xcertplay.media.CarPlayVideoLayout
 import com.shilapi.xcertplay.orchestration.CarPlayController
 import com.shilapi.xcertplay.orchestration.CarPlayRuntimeConfig
-import com.shilapi.xcertplay.orchestration.MfiTarget
+import com.shilapi.xcertplay.orchestration.CarPlayTransport
 import com.shilapi.xcertplay.orchestration.WirelessHotspotMode
+import com.shilapi.xcertplay.orchestration.MfiTarget
 import com.shilapi.xcertplay.transport.Iap2IdentificationConfig
 import java.time.Duration
 import java.util.concurrent.ExecutorService
@@ -42,15 +43,23 @@ import org.robolectric.shadows.ShadowLog
 @LooperMode(LooperMode.Mode.PAUSED)
 class CarPlayHostDisplaySizeTest {
     private lateinit var activity: CarPlayHostActivity
+    private var originalBootstrapReady = false
     private lateinit var controllerConstruction: MockedConstruction<CarPlayController>
     private val sizeClass = Class.forName("com.shilapi.xcertplay.CarPlayHostActivity\$DisplaySize")
 
     @Before fun setUp() {
         activity = Robolectric.buildActivity(CarPlayHostActivity::class.java).get()
+        AirPlayPersistence.saveManualHotspotSsid(activity, "Test car hotspot")
+        AirPlayPersistence.saveManualHotspotPassphrase(activity, "test-only-pass")
+        AirPlayPersistence.saveManualHotspotSecurity(activity, com.shilapi.xcertplay.orchestration.ManualHotspotSecurity.WPA2)
         AirPlayPersistence.saveAdaptPipResolution(activity, false)
         AirPlayPersistence.saveHarmanFullscreen(activity, false)
-        // Source-only tests have no provisioned local authentication identity.
-        AirPlayPersistence.saveMfiTarget(activity, MfiTarget.USB_CH341)
+        // Authentication is a separate suite. This display fixture models an already provisioned
+        // G3 session without putting any runtime private identity in the source-only test APK.
+        val ready = DiPlayBootstrap::class.java.getDeclaredField("ready").apply { isAccessible = true }
+        originalBootstrapReady = ready.getBoolean(null)
+        ready.setBoolean(null, true)
+        AirPlayPersistence.saveMfiTarget(activity, MfiTarget.LOCAL)
         // Exercise host startup without launching vendor-service workers or real transports.
         controllerConstruction = mockConstruction(CarPlayController::class.java) { controller, _ ->
             org.mockito.Mockito.`when`(controller.nowPlayingSnapshot()).thenReturn(CarPlayNowPlaying())
@@ -63,6 +72,8 @@ class CarPlayHostDisplaySizeTest {
     }
 
     @After fun tearDown() {
+        DiPlayBootstrap::class.java.getDeclaredField("ready").apply { isAccessible = true }
+            .setBoolean(null, originalBootstrapReady)
         (getField("shuttingDown") as AtomicBoolean).set(true)
         (getField("mainHandler") as Handler).removeCallbacksAndMessages(null)
         AirPlayPersistence.overlaySettingsListener = null
@@ -291,7 +302,7 @@ class CarPlayHostDisplaySizeTest {
     }
 
     @Test fun savingMenuBarsPreservesAnIndependentCombination() {
-        AirPlayPersistence.saveWirelessHotspotMode(activity, WirelessHotspotMode.WIFI_P2P)
+        AirPlayPersistence.saveWirelessHotspotMode(activity, WirelessHotspotMode.MANUAL)
         invoke("loadPersistedSettings")
         setField("menuOpen", true)
         val controls = invoke("buildFullscreenSection") as ViewGroup
@@ -439,7 +450,10 @@ class CarPlayHostDisplaySizeTest {
         val display = CarPlaySessionDisplay(1536, 792, Surface.ROTATION_0, true, true, 1920, 990)
         val sink = AndroidMediaSink()
         val controller = CarPlayController(activity,
-            CarPlayRuntimeConfig(mfiTarget = MfiTarget.LOCAL, identification = Iap2IdentificationConfig(
+            CarPlayRuntimeConfig(mfiTarget = MfiTarget.LOCAL,
+                transport = CarPlayTransport.WIRELESS, wirelessHotspotMode = WirelessHotspotMode.MANUAL,
+                manualHotspotSsid = "Test car hotspot", manualHotspotPassphrase = "test-only-pass",
+                identification = Iap2IdentificationConfig(
                 name = "test", modelIdentifier = "test", manufacturer = "test", serialNumber = "test",
                 firmwareVersion = "1", hardwareVersion = "1", carPlayUsbInterfaceNumber = 3)),
             AirPlayConfig(deviceName = "test", deviceId = "02:00:00:00:00:02", btMac = "02:00:00:00:00:01",
