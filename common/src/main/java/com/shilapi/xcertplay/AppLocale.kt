@@ -23,7 +23,7 @@ object AppLocale {
     const val UKRAINIAN = "uk"
     const val JAPANESE = "ja"
 
-    val ALL = listOf(SYSTEM, ENGLISH, SIMPLIFIED_CHINESE, TRADITIONAL_CHINESE, ARABIC, RUSSIAN, SPANISH, UKRAINIAN, JAPANESE)
+    val ALL = listOf(SYSTEM, ENGLISH, SIMPLIFIED_CHINESE)
 
     private const val PREFS = "diplay"
     private const val KEY_LANGUAGE = "app_language"
@@ -35,13 +35,13 @@ object AppLocale {
             val locales = context.getSystemService(LocaleManager::class.java).applicationLocales
             if (locales.isEmpty) return SYSTEM
             val selected = locales[0]
-            if (selected.language != "zh") return selected.language
+            if (selected.language != "zh") return selected.language.takeIf { it in ALL } ?: SYSTEM
             // An explicit BCP 47 script is more specific than the region's usual script.
             return when (selected.script) {
-                "Hant" -> TRADITIONAL_CHINESE
+                "Hant" -> SYSTEM
                 "Hans" -> SIMPLIFIED_CHINESE
                 else -> if (selected.country in setOf("TW", "HK", "MO")) {
-                    TRADITIONAL_CHINESE
+                    SYSTEM
                 } else {
                     SIMPLIFIED_CHINESE
                 }
@@ -70,7 +70,7 @@ object AppLocale {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             if (!prefs.getBoolean(KEY_MIGRATED, false)) {
                 val manager = context.getSystemService(LocaleManager::class.java)
-                val previous = locale(prefs.getString(KEY_LANGUAGE, SYSTEM) ?: SYSTEM)
+                val previous = locale((prefs.getString(KEY_LANGUAGE, SYSTEM) ?: SYSTEM).takeIf { it in ALL } ?: SYSTEM)
                 // Never overwrite a language already chosen through Android Settings.
                 if (manager.applicationLocales.isEmpty && previous != null) {
                     manager.applicationLocales = LocaleList(previous)

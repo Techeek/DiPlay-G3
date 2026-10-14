@@ -39,3 +39,7 @@ release-signing.properties
 *.key
 *.apk
 *.aab
+
+# Local G3 distributions and private runtime inputs
+dist/
+.private/

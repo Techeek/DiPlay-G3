@@ -20,9 +20,7 @@ class NightModeResourcesTest {
     }
 
     @Test fun customSettingsFollowEverySupportedResourceLocale() {
-        val expected = mapOf("en" to "Transition delay", "zh-CN" to "切换延迟",
-            "ar" to "تأخير التبديل", "ru" to "Задержка переключения",
-            "es" to "Retardo de cambio", "uk" to "Затримка перемикання")
+        val expected = mapOf("en" to "Transition delay", "zh-CN" to "切换延迟")
         for ((tag, title) in expected) {
             val c = context(tag)
             assertEquals(tag, title, c.getString(R.string.ambient_delay_title))

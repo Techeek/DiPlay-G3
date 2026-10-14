@@ -14,12 +14,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.shihab.diplay"
-        minSdk = 25
-        targetSdk = 37
-        versionCode = 38
-        versionName = "0.2.19"
-
+        applicationId = "com.techeek.diplay.g3"
+        minSdk = 28
+        targetSdk = 28
+        versionCode = 100
+        versionName = "0.3.0-g3.1"
+        ndk { abiFilters += "arm64-v8a" }
     }
 
 
@@ -39,8 +39,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix = ".hudtest"
-            versionNameSuffix = "-hud-test"
+            // G3 debug builds use the same dedicated application ID.
+            versionNameSuffix = "-test"
         }
         release {
             optimization {
@@ -53,6 +53,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+    // Direct installation on D21 Android 9 requires its legacy hotspot APIs; not a Play Store build.
+    lint { disable += "ExpiredTargetSdkVersion" }
     buildFeatures {
         compose = true
     }
