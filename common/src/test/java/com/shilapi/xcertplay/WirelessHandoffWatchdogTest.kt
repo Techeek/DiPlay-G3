@@ -52,6 +52,8 @@ class WirelessHandoffWatchdogTest {
             override fun getApplicationContext(): Context = this
             override fun bindService(service: Intent, conn: ServiceConnection, flags: Int): Boolean = false
         }, CarPlayRuntimeConfig(mfiTarget = MfiTarget.LOCAL, transport = CarPlayTransport.WIRELESS,
+            wirelessHotspotMode = WirelessHotspotMode.MANUAL,
+            manualHotspotSsid = "Test car hotspot", manualHotspotPassphrase = "test-only-pass",
             identification = Iap2IdentificationConfig(name = "test", modelIdentifier = "test", manufacturer = "test",
                 serialNumber = "test", firmwareVersion = "1", hardwareVersion = "1", carPlayUsbInterfaceNumber = 3)),
             config, identity, PairingStore(), listener, object : AirPlayMediaHandler {}, statuses::add)

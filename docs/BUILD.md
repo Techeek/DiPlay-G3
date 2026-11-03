@@ -1,27 +1,13 @@
-# Build DiPlay
+# Build DiPlay G3
 
 Use this procedure to build the DiPlay app for an Android head unit.
 Run the commands from the repository root, where `gradlew` and `settings.gradle.kts` are located.
 
 ## Select the application
 
-This repository contains several Android applications.
-Select `mobile` to build the main DiPlay app.
-
-| Gradle module | Purpose | Debug APK |
-| --- | --- | --- |
-| `:mobile` | Main DiPlay app for Android head units | `mobile/build/outputs/apk/debug/mobile-debug.apk` |
-| `:maphost` | Sample application that displays a map from DiPlay | `samples/maphost/build/outputs/apk/debug/maphost-debug.apk` |
-| `:home` | Optional DiPlay Home launcher | `samples/home/build/outputs/apk/debug/home-debug.apk` |
-| `:automotive` | Separate Android Automotive application inherited from xcertplay | `automotive/build/outputs/apk/debug/automotive-debug.apk` |
-
-The `:common` and `:shared` modules are libraries.
-The applications use these libraries.
-
-If the installed app is **DiPlay map host**, you selected `:maphost` or its APK.
-Build `:mobile` and select `mobile-debug.apk` to install the main app.
-A command such as `./gradlew assembleDebug` can build more than one application.
-Use the module name in each build command to select the required application.
+The G3 fork contains `mobile` (APK), `common` and `shared` (libraries).
+Build `:mobile:assembleDebug`; its output is `mobile/build/outputs/apk/debug/mobile-debug.apk`.
+The original Automotive, home and map-host sample applications have been removed.
 
 ## Prepare the build environment
 
@@ -73,8 +59,8 @@ Check that this file exists:
 mobile/build/outputs/apk/debug/mobile-debug.apk
 ```
 
-The debug application ID is `com.shihab.diplay.hudtest`.
-The release application ID is `com.shihab.diplay`.
+The debug application ID is `com.techeek.diplay.g3`.
+The release application ID is `com.techeek.diplay.g3`.
 
 The source APK contains no accessory identity unless you supply runtime authentication assets.
 Standalone CarPlay needs these assets to connect to an iPhone.
@@ -104,7 +90,7 @@ Run the unit tests, lint checks, and main debug build:
 
 Check that Gradle reports `BUILD SUCCESSFUL`.
 For the complete CI procedure, see [the Android workflow](../.github/workflows/android.yml).
-That workflow also checks and builds the `home` and `maphost` applications.
+The G3 fork retains only mobile, common and shared modules.
 
 ## Build a standalone car-test APK
 

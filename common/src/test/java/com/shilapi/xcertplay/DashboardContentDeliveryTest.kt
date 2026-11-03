@@ -26,7 +26,10 @@ class DashboardContentDeliveryTest {
         val config = AirPlayConfig("test", "test", "", "1", AirPlayDisplayConfig(800, 480),
             cluster = AirPlayDisplayConfig(1600, 600, initialUrl = CarPlayClusterDisplay.Content.TURN_CARD.url))
         val controller = CarPlayController(RuntimeEnvironment.getApplication(),
-            CarPlayRuntimeConfig(mfiTarget = MfiTarget.LOCAL, identification = Iap2IdentificationConfig(
+            CarPlayRuntimeConfig(mfiTarget = MfiTarget.LOCAL,
+                transport = CarPlayTransport.WIRELESS, wirelessHotspotMode = WirelessHotspotMode.MANUAL,
+                manualHotspotSsid = "Test car hotspot", manualHotspotPassphrase = "test-only-pass",
+                identification = Iap2IdentificationConfig(
                 name = "test", modelIdentifier = "test", manufacturer = "test", serialNumber = "test",
                 firmwareVersion = "1", hardwareVersion = "1", carPlayUsbInterfaceNumber = 3)),
             config, AirPlayIdentity(ByteArray(32), ByteArray(32), "test"), PairingStore(),

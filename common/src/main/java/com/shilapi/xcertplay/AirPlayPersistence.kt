@@ -294,27 +294,11 @@ object AirPlayPersistence {
         return true
     }
 
-    fun loadWirelessEnabled(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_WIRELESS_ENABLED, true)
-
-    fun saveWirelessEnabled(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putBoolean(KEY_WIRELESS_ENABLED, enabled)
-            .apply()
-    }
-
-    fun loadMfiTarget(context: Context): MfiTarget {
-        val stored = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_MFI_TARGET, null)
-        return MfiTarget.entries.firstOrNull { it.name == stored } ?: MfiTarget.LOCAL
-    }
-
-    fun saveMfiTarget(context: Context, target: MfiTarget) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(KEY_MFI_TARGET, target.name)
-            .apply()
-    }
+    // G3 has one supported connection and authentication path, regardless of legacy prefs.
+    fun loadWirelessEnabled(context: Context): Boolean = true
+    fun saveWirelessEnabled(context: Context, enabled: Boolean) {}
+    fun loadMfiTarget(context: Context): MfiTarget = MfiTarget.LOCAL
+    fun saveMfiTarget(context: Context, target: MfiTarget) {}
 
     fun loadMfiI2cPath(context: Context): String =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -350,22 +334,8 @@ object AirPlayPersistence {
             .apply()
     }
 
-    fun loadWirelessHotspotMode(context: Context): WirelessHotspotMode {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val stored = prefs.getString(KEY_WIRELESS_HOTSPOT_MODE, null)
-        val mode = WirelessHotspotMode.entries.firstOrNull { it.name == stored }
-            ?: WirelessHotspotMode.MANUAL
-        val supported = if (mode == WirelessHotspotMode.LOCAL_ONLY_HOTSPOT) WirelessHotspotMode.MANUAL else mode
-        if (stored != supported.name) saveWirelessHotspotMode(context, supported)
-        return supported
-    }
-
-    fun saveWirelessHotspotMode(context: Context, mode: WirelessHotspotMode) {
-        val supported = if (mode == WirelessHotspotMode.LOCAL_ONLY_HOTSPOT) WirelessHotspotMode.MANUAL else mode
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(KEY_WIRELESS_HOTSPOT_MODE, supported.name)
-            .apply()
-    }
+    fun loadWirelessHotspotMode(context: Context): WirelessHotspotMode = WirelessHotspotMode.MANUAL
+    fun saveWirelessHotspotMode(context: Context, mode: WirelessHotspotMode) {}
 
     fun loadWifiP2pPreferredChannel(context: Context): Int = runCatching {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

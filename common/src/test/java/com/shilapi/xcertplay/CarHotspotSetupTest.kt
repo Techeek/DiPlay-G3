@@ -86,21 +86,27 @@ class CarHotspotSetupTest {
         assertFalse(eligible())
     }
 
-    @Test fun wiredModeNeverPreparesAHotspotEvenWhenTheChoiceIsSaved() {
+    @Test fun legacyWiredPreferenceCannotDisableG3HotspotStartup() {
         configureHotspot()
         CarHotspotSettings.setEnabled(context, true)
         AirPlayPersistence.saveWirelessEnabled(context, false)
-        assertFalse(eligible())
+        assertTrue(AirPlayPersistence.loadWirelessEnabled(context))
+        assertTrue(eligible())
+        // The standalone policy still refuses a genuinely wired request.
         assertFalse(CarHotspotSettings.shouldEnable(context, false, WirelessHotspotMode.MANUAL))
         assertTrue(CarHotspotSettings.enabled(context))
     }
 
-    @Test fun wifiDirectAndLocalOnlyHotspotAreNotAutomaticallyManaged() {
+    @Test fun legacyWifiBackendPreferencesCannotReplaceG3CarHotspot() {
         configureHotspot()
         CarHotspotSettings.setEnabled(context, true)
-        AirPlayPersistence.saveWirelessHotspotMode(context, WirelessHotspotMode.WIFI_P2P)
-        assertFalse(eligible())
-        assertFalse(CarHotspotSettings.shouldEnable(context, true, WirelessHotspotMode.LOCAL_ONLY_HOTSPOT))
+        for (mode in WirelessHotspotMode.entries.filter { it != WirelessHotspotMode.MANUAL }) {
+            AirPlayPersistence.saveWirelessHotspotMode(context, mode)
+            assertEquals(WirelessHotspotMode.MANUAL, AirPlayPersistence.loadWirelessHotspotMode(context))
+            assertTrue(eligible())
+            // The standalone policy still refuses every non-car-hotspot backend.
+            assertFalse(CarHotspotSettings.shouldEnable(context, true, mode))
+        }
     }
 
     @Test fun disablingTheChoiceCancelsFutureStartupWithoutChangingConnectionSettings() {

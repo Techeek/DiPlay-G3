@@ -1,7 +1,18 @@
+import org.gradle.api.tasks.Classpath
+import org.gradle.process.CommandLineArgumentProvider
+
+abstract class MockitoAgentArguments : CommandLineArgumentProvider {
+    @get:Classpath
+    abstract val agentFiles: ConfigurableFileCollection
+    override fun asArguments(): Iterable<String> = listOf("-javaagent:${agentFiles.singleFile.absolutePath}")
+}
+
 plugins {
     id("com.android.library")
     alias(libs.plugins.kotlin.compose)
 }
+
+val mockitoAgent = configurations.create("mockitoAgent")
 
 android {
     namespace = "com.shilapi.xcertplay.host"
@@ -25,7 +36,15 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
         // The UI suite covers several SDKs and locale-specific resource sandboxes.
-        unitTests.all { it.maxHeapSize = "1g" }
+        unitTests.all {
+            it.maxHeapSize = "1g"
+            // Stable test-host locale, matching CI; per-test qualifiers still cover Chinese/RTL.
+            it.systemProperty("user.language", "en")
+            it.systemProperty("user.country", "US")
+            it.jvmArgumentProviders.add(objects.newInstance(MockitoAgentArguments::class.java).apply {
+                agentFiles.from(mockitoAgent)
+            })
+        }
     }
 }
 
@@ -47,5 +66,6 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("org.mockito:mockito-core:5.20.0")
+    add("mockitoAgent", "org.mockito:mockito-core:5.20.0") { isTransitive = false }
     testImplementation(libs.jmdns)
 }
